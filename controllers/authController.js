@@ -24,6 +24,7 @@ const login = asyncHandler(async(req,res)=>{
     // confirm the roles data and the roles length       
     if(foundUser.roles.length === 0)return res.status(404).json({message:"user have no role"})
     
+    
         const accessToken = jwt.sign(
     {
         "UserInfo":{

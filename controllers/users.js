@@ -21,77 +21,89 @@ const getallUsers =asyncHandler (async (req,res)=>{
 //@desc Create new user
 //@route Post/users
 //@access Private
-const createNewUser =asyncHandler (async (req,res)=>{
-    const{username,password,roles,c_Name,dob,firstName,lastName}=req.body
-    const today = new Date()
-    const date_of_birth = new Date(dob)
-   
-    // Confirm data 
+const createNewUser = asyncHandler(async (req, res) => {
+    const { password, roles, c_Name, dob, firstName, lastName } = req.body;
+    const today = new Date();
+    const date_of_birth = new Date(dob);
 
-    if(!username || !password || !c_Name ){
-        return res.status(400).json({message:"all fields are required "})
+    // Confirm data
+    if (!firstName || !password || !c_Name) {
+        return res.status(400).json({ message: "First name, password, and company name are required." });
+    }
 
-    } 
-    const company = await Company.findOne({c_Name}).exec();
-    if (!company)return res.status(404).json({ message: "Company not found" });
+    const company = await Company.findOne({ c_Name }).exec();
+    if (!company) {
+        return res.status(404).json({ message: "Company not found" });
+    }
 
-    const duplicate = await User.findOne({username:username}).exec()
-    if(duplicate)return res.status(400).json({message:"find another name there is an employee with the same name"})
-    
-    const age = today.getFullYear()-date_of_birth.getFullYear()
+    // Generate a unique ID with the username and a random 4-digit number
+    let isUnique = false;
+    let newUsername;
+    while (!isUnique) {
+        const randomDigits = Math.floor(1000 + Math.random() * 9000); // Generates a random 4-digit number
+        newUsername = `${firstName.toLowerCase()}${randomDigits}`;
+        const duplicate = await User.findOne({ username: newUsername }).exec();
+        if (!duplicate) {
+            isUnique = true;
+        }
+    }
+    const username = newUsername;
 
-    const hashPwd = await bcrypt.hash(password,10) // 10 is the salting 
-    const userObject = (!Array.isArray(roles)||!roles.length)?{c_Name:company.id,username,"password":hashPwd,firstName,lastName,age,dob}:{c_Name:company.id,username,"password":hashPwd,firstName,lastName,roles,age,dob}
+    const age = today.getFullYear() - date_of_birth.getFullYear();
+    const hashPwd = await bcrypt.hash(password, 10); // 10 is the salting 
+    const userObject = (!Array.isArray(roles) || !roles.length) ? { c_Name: company.id, username, "password": hashPwd, firstName, lastName, age, dob } : { c_Name: company.id, username, "password": hashPwd, firstName, lastName, roles, age, dob };
 
-    //Create and store the new user 
-    const user = await User.create(userObject)
-    if(!user)return res.status(409).json({message:"error creating"})
-    
-       const accessToken = jwt.sign(
-            {
-                "UserInfo": {
-                    "username": user.username,
-                    "roles": user.roles,
-                    "c_Name":user.c_Name
-                }
-            },
-            process.env.ACCESS_TOKEN_SECRET,
-            { expiresIn: '60m' }
-        );
+    // Create and store the new user 
+    const user = await User.create(userObject);
+    if (!user) {
+        return res.status(409).json({ message: "Error creating user." });
+    }
 
-        const refreshToken = jwt.sign(
-            { "username": user.username },
-            process.env.REFRESH_TOKEN_SECRET,
-            { expiresIn: '1d' }
-        );
+    const accessToken = jwt.sign(
+        {
+            "UserInfo": {
+                "username": user.username,
+                "roles": user.roles,
+                "c_Name": user.c_Name
+            }
+        },
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: '60m' }
+    );
 
-        // Set cookie and send response
-        res.cookie('jwt', refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: 'None',
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
+    const refreshToken = jwt.sign(
+        { "username": user.username },
+        process.env.REFRESH_TOKEN_SECRET,
+        { expiresIn: '1d' }
+    );
 
-     res.json({message:`the user created ${user.username} successfully `,user:{
-        user:user.username,
-        roles:user.roles,
-        age:user.age,
-        c_Name:company.c_Name
-     }})
-    
+    // Set cookie and send response
+    res.cookie('jwt', refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'None',
+        maxAge: 7 * 24 * 60 * 60 * 1000
+    });
 
-
-})
+    res.json({
+        message: `The user created ${user.username} successfully.`,
+        user: {
+            username: user.username,
+            roles: user.roles,
+            age: user.age,
+            c_Name: company.c_Name
+        }
+    });
+});
 //@desc Update a user
 //@route PATCH/users
 //@access Private
 const updateuser =asyncHandler (async (req,res)=>{
-    const{username,password}=req.body 
+    const{password}=req.body 
     const{id}= req.params
 
     // Confirm data 
-    if(!id || !username ){
+    if(!id ){
         return res.status(400).json({message:"All field are required"})
     }
     const user = await User.findById(id).exec()
@@ -99,13 +111,9 @@ const updateuser =asyncHandler (async (req,res)=>{
         return res.status(400).json({message:"User not found"})
     }
     //Check for duplicate 
-    const duplicate = await User.findOne({username}).collation({locale:'en',strength:2}).lean().exec()
-    // Allow updates to the original user permission to the owned user 
-    if(duplicate && duplicate?._id.toString()!==id){
-        return res.status(409).json({message:"Duplicate username"})
-
-    }
-    user.username=username
+            // Check for duplicate username (excluding current user)
+        
+ 
     
     if(password){
         //Hashpassword

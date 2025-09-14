@@ -13,5 +13,6 @@ router.route('/')
     router.route('/:id').patch(users.updateuser);
     router.route('/getuser/:username').get(users.get_user_id)
     router.route('/getuser').post(users.getUser)
+    router.route('/:id').post(users.updateuser);
 
 module.exports = router

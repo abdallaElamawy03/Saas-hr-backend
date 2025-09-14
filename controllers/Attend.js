@@ -115,7 +115,7 @@ const get_User_Attend =asyncHandler(async(req,res)=>{
     if(!username)return res.status(400).json({message:"username for the attend profile"})
     const user = await User.findOne({username}).exec()
 
-    const attend = await Attendance.findOne({user:user.id}).lean().exec()
+    const attend = await Attendance.findOne({user:user._id}).lean().exec()
     if(!attend)return res.status(400).json({message:"the attend with the this id not found"})
     
     return res.status(200).json({attend})

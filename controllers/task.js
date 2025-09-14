@@ -133,48 +133,60 @@ const getuser_task = asyncHandler(async(req,res)=>{
 //@access Private
 
 //#EDIT THIS RESTAPI MAKE ONLY HR ,MANGER CAN UPDATE {E}
-const update_task = asyncHandler(async(req,res)=>{
-    const {username , title , description , dueDate,status}= req.body 
-    const{id,task_id}=req.params// the id of the task
-    if(!username||!id||!task_id)return res.status(400).json({msg:"the fields are required"})
+const update_task = asyncHandler(async (req, res) => {
+    const { username, title, description, duedate, status } = req.body;
+    const { id, task_id } = req.params;
 
+    if (!username || !id || !task_id) {
+        return res.status(400).json({ msg: "The fields are required" });
+    }
 
-    const task = await Task.findById(id).populate('user','c_Name').exec()
-    if(!task)return res.status(404).json({msg:"the task not found"})
+    const task = await Task.findById(id).populate('user', 'c_Name').exec();
+    if (!task) {
+        return res.status(404).json({ msg: "The task not found" });
+    }
 
-    const requester_User = await User.findOne({username}).exec()
-    if(!requester_User)return res.status(404).json({msg:"The requested user is not found"})
-    
-    if(requester_User.c_Name.toString() !== task.user.c_Name.toString())return res.status(403).json({msg:"The requested user is not related to the company "})
+    const requester_User = await User.findOne({ username }).exec();
+    if (!requester_User) {
+        return res.status(404).json({ msg: "The requested user is not found" });
+    }
+
+    if (requester_User.c_Name.toString() !== task.user.c_Name.toString()) {
+        return res.status(403).json({ msg: "The requested user is not related to the company " });
+    }
 
     const allowedRoles = ['hr', 'manager'];
     const hasAllowedRole = requester_User.roles.find(role => allowedRoles.includes(role.toLowerCase()));
-    if(!hasAllowedRole)return res.status(401).json({msg:"the user is not allowed"})
-    
-
-    const validate_status =['inprogress','completed','late']
-    if(!validate_status.includes(status.toLowerCase()))return res.status(400).json({msg:"invalid input"})
-    
-
-        const update_task ={
-        title : title ,
-        description:description ,
-        dueDate:dueDate,
-        status:status
+    if (!hasAllowedRole) {
+        return res.status(401).json({ msg: "The user is not allowed" });
     }
-    
 
-    const subTaskIndex = task.task.findIndex(tk => tk.id === task_id);
-    if (subTaskIndex === -1) {
+    const validate_status = ['inprogress', 'completed', 'late'];
+    if (status && !validate_status.includes(status.toLowerCase())) {
+        return res.status(400).json({ msg: "Invalid input for status" });
+    }
+
+    const subTask = task.task.find(tk => tk.id === task_id);
+    if (!subTask) {
         return res.status(404).json({ msg: "The sub-task not found" });
     }
+
+    const currentStatus = subTask.status;
+
+    // Build an object with only the fields that were provided in the request body
+    const updateFields = {};
+    if (title !== undefined) updateFields.title = title;
+    if (description !== undefined) updateFields.description = description;
+    if (duedate !== undefined) updateFields.dueDate = duedate;
+    if (status !== undefined) updateFields.status = status.toLowerCase();
+
+    //using object.assign is to only change the fields you want to be changed onlly in mongoDb
     
 
-    const currentStatus = task.task[subTaskIndex].status;
-    
-    task.task[subTaskIndex]=update_task
+    Object.assign(subTask, updateFields);
 
     if (status && currentStatus !== status.toLowerCase()) {
+        // Decrement the old status count
         switch (currentStatus) {
             case 'inprogress':
                 task.totalInprogress -= 1;
@@ -186,7 +198,8 @@ const update_task = asyncHandler(async(req,res)=>{
                 task.totalLate -= 1;
                 break;
         }
-        
+
+        // Increment the new status count
         switch (status.toLowerCase()) {
             case 'inprogress':
                 task.totalInprogress += 1;
@@ -199,72 +212,82 @@ const update_task = asyncHandler(async(req,res)=>{
                 break;
         }
     }
-      try {
+
+    try {
         const savedTask = await task.save();
-        return res.status(200).json({ 
+        return res.status(200).json({
             msg: "The task updated successfully",
-            task: savedTask 
+            task: savedTask
         });
     } catch (error) {
-        return res.status(500).json({ 
+        return res.status(500).json({
             msg: "Error saving the task",
-            error: error.message 
+            error: error.message
         });
     }
-
-
-})
+});
 //@v1.00
 //@desc create a new company account
 //@route {delete}/:taskid/:subtaskid
 //@access Private
 
 
-//#EDIT MAKE ONLY HR , MANAGERS CAN ACCESS THIS API
-const delete_subtask = asyncHandler(async(req,res)=>{
-    const{id,task_id} =req.params 
-    const {username} = req.body
+const delete_subtask = asyncHandler(async (req, res) => {
+    const { id, task_id } = req.params;
+    const { username } = req.body;
 
-    if(!username)return res.status(400).json({msg:"the username required"})
-    if(!id || !task_id) return res.status(400).json({msg:"the id and task id required"})
+    if (!username) return res.status(400).json({ msg: "The username is required." });
+    if (!id || !task_id) return res.status(400).json({ msg: "The task id and subtask id are required." });
 
-    const task = await Task.findById(id).populate('user','c_Name').exec()
-    if(!task)return res.status(404).json({msg:"the task profile not found"})
+    const task = await Task.findById(id).populate('user', 'c_Name').exec();
+    if (!task) return res.status(404).json({ msg: "The task profile not found." });
 
-    const requester_User = await User.findOne({username}).exec()
-    if(!requester_User)return res.status(400).json({msg:"the requester user is not found"})
+    const requester_User = await User.findOne({ username }).exec();
+    if (!requester_User) return res.status(400).json({ msg: "The requester user is not found." });
+
     const allowedRoles = ['hr', 'manager'];
     const hasAllowedRole = requester_User.roles.find(role => allowedRoles.includes(role.toLowerCase()));
-    if(!hasAllowedRole)return res.status(401).json({msg:"the user is not allowed"})
-    
-    // check the user is related to the company or not 
+    if (!hasAllowedRole) return res.status(401).json({ msg: "The user is not allowed." });
 
-    if(requester_User.c_Name.toString() !== task.user.c_Name.toString())return res.status(403).json({msg:"forbidden you're not related to this company"})
+    if (requester_User.c_Name.toString() !== task.user.c_Name.toString()) {
+        return res.status(403).json({ msg: "Forbidden, you're not related to this company." });
+    }
 
-    
-    const f_Sub_task = task.task.find((tk)=>{
-        return tk.id === task_id
+    // Find the subtask to be deleted
+    const f_Sub_task = task.task.find(tk => tk.id === task_id);
+    if (!f_Sub_task) return res.status(404).json({ msg: "The subtask not found." });
 
-    })
-    if(!f_Sub_task)return res.status(404).json({msg:"the subtask not found"})
-    task.task=task.task.filter((tk)=>{
-        return tk.id !== task_id
-    })
+    // Use a switch case to decrement the total counts based on the subtask's status before deleting it
+    switch (f_Sub_task.status) {
+        case 'inprogress':
+            task.totalInprogress -= 1;
+            break;
+        case 'completed':
+            task.totalCompleted -= 1;
+            break;
+        case 'late':
+            task.totalLate -= 1;
+            break;
+        default:
+            break; // Do nothing if the status is unrecognized
+    }
+
+    // Filter out the subtask to delete it from the array
+    task.task = task.task.filter(tk => tk.id !== task_id);
 
     try {
         const savedTask = await task.save();
-        return res.status(200).json({ 
-            msg: "The task updated successfully",
-            task: savedTask 
+        return res.status(200).json({
+            msg: "The task was successfully deleted.",
+            task: savedTask
         });
     } catch (error) {
-        return res.status(500).json({ 
-            msg: "Error saving the task",
-            error: error.message 
+        return res.status(500).json({
+            msg: "Error deleting the task.",
+            error: error.message
         });
     }
-
-})
+});
 //@v1.00
 //@desc get company tasks for every one responsible hr,managers
 //@route {get}/company
@@ -480,6 +503,59 @@ const view_Task =asyncHandler(async(req,res)=>{
     
 
 })
+
+const checkLateTasks = asyncHandler(async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to the beginning of the day
+
+    // Find all task documents
+    const allTaskDocs = await Task.find({});
+
+    if (!allTaskDocs || allTaskDocs.length === 0) {
+      return res.status(200).json({ message: "No tasks found to check." });
+    }
+
+    let updatedCount = 0;
+
+    // Loop through each user's task document
+    for (const taskDoc of allTaskDocs) {
+      // Loop through the tasks array for that user
+      for (const taskItem of taskDoc.task) {
+        // Check if the due date has passed and the status isn't 'completed' or 'late'
+        if (
+          new Date(taskItem.dueDate) < today &&
+          taskItem.status !== 'completed' &&
+          taskItem.status !== 'late'
+        ) {
+          // Update the status
+          taskItem.status = 'late';
+          // Update the counts
+          taskDoc.totalInprogress -= 1;
+          taskDoc.totalLate += 1;
+          updatedCount++;
+        }
+      }
+      // Save the changes to the task document
+      await taskDoc.save();
+    }
+
+    if (updatedCount > 0) {
+      res.status(200).json({
+        message: `${updatedCount} tasks updated to 'late' status.`,
+      });
+    } else {
+      res.status(200).json({ message: "No tasks needed to be updated." });
+    }
+  } catch (error) {
+    res.status(500).json({
+      msg: "Error checking for late tasks",
+      error: error.message,
+    });
+  }
+});
+
+
 module.exports={
     get_Alltasks,
     new_Task,
@@ -491,6 +567,7 @@ module.exports={
     add_Note,
     delete_Note,
     get_allNotes,
-    view_Task
+    view_Task,
+    checkLateTasks
 
 }

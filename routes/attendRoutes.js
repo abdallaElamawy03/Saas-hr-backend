@@ -11,7 +11,7 @@ router.route('/user').post(attend.get_User_Attend)
 router.route('/:username').post(attend.dailyattend).get(attend.get_User)
 
 //:attendid/:logid
-router.route('/:id/:logs').patch(attend.update_log_id).delete(attend.delete_log_id)
+router.route('/:id/:logs').patch(attend.update_log_id).delete(attend.delete_log_id).get(attend.get_log_id)
 
 
 module.exports=router 

@@ -92,9 +92,9 @@ const getCompanyUsers = asyncHandler(async(req,res)=>{
         
         
         const name = await Company.findOne({c_Name}).select('-password').lean().exec()
-        if(!name)return res.status(404).json({message:"company name required"})
+        if(!name)return res.status(404).json({message:"no company found"})
         if(user.c_Name.toString() !== name._id.toString()) return res.status(403).json({msg:"the user is not assigned to this company "})
-    const users = await User.find( {c_Name:name._id} ).select('-password') .lean().exec();
+    const users = await User.find( {c_Name:name._id,roles:'Employee' } ).select('-password') .lean().exec();
     if(!users)return res.status(404).json({message:"no users found to this company"})
 
     return res.json ({users});
@@ -104,81 +104,107 @@ const getCompanyUsers = asyncHandler(async(req,res)=>{
 // @patch /company/:usernameid
 // @Private Access
 
-const updateUser = asyncHandler (async(req,res)=>{
-    const{c_Name,active,roles,dob} = req.body
-    const{username} = req.params
-    const today = new Date()
-    const date_of_birth = new Date(dob)
-    if( !c_Name || !active ){
-        return res.status(400).json({message:"all fields are required"})
+const updateUser = asyncHandler(async (req, res) => {
+    const { c_Name, firstname, lastname, active, roles, dob } = req.body;
+    const { username } = req.params;
+
+    // Input validation
+    if (!c_Name || !firstname || !lastname || !active ) {
+        return res.status(400).json({ message: "All fields are required." });
     }
-   
-     const user = await User.findById(username).select("-password").exec()
-     if(!user)return res.status(400).json({message:"the user not found"})
-        
-     
-     if(c_Name.toString() !== user.c_Name.toString()){
-        return res.status(403).json({message:"forbidden"})
-     }
-    const age = today.getFullYear()-date_of_birth.getFullYear()
 
+    // Find the user by username, not by ID
+    const user = await User.findOne({ username }).select("-password").exec();
 
-    user.active=active
-    user.roles=roles
-    user.dob=dob
-    user.age=age
+    if (!user) {
+        return res.status(404).json({ message: "User not found." });
+    }
 
+    // Authorization check
+    // if (c_Name.toString() !== user.c_Name.toString()) {
+    //     return res.status(403).json({ message: "Forbidden: You cannot update a user outside your company." });
+    // }
 
-    const updateduser = await user.save()
-    if(updateduser)return res.status(200).json({message:`${user.username} updated sucessfully`})
-    
+    // Calculate age
+    const today = new Date();
+    const date_of_birth = new Date(dob);
+    const age = today.getFullYear() - date_of_birth.getFullYear();
 
+    // Update user properties
+    user.active = active;
+    user.roles = roles;
+    user.dob = date_of_birth; // Store date as a Date object
+    user.age = age;
+    user.firstName = firstname;
+    user.lastName = lastname;
 
-     
-    
+    // Save the updated user
+    const updatedUser = await user.save();
 
-        
-})
+    if (updatedUser) {
+        return res.status(200).json({ message: `${updatedUser.username} updated successfully.` });
+    } else {
+        return res.status(500).json({ message: "Failed to update user." });
+    }
+});
 //@v1.00
 //@desc deleting a specific user related to the company
 //@route /delete
 //@access private
-const delete_select = asyncHandler(async(req,res)=>{
-    const {c_Name} = req.body 
-    const {username}=req.params
-    if(!username)return res.status(404).json({message:'please provide the id'})
-    const user = await User.findById(username).select("-password").exec()
-    if(!user)return res.status(400).json({message:"the user not found"})
-    if(c_Name.toString() !== user.c_Name.toString()) return res.status(403).json({message:'forbidden'})
-    //confirming the user is find
+const delete_select = asyncHandler(async (req, res) => {
+    const { username } = req.params;
+
+    // Step 1: Validate input
+    if (!username) {
+        return res.status(400).json({ message: 'Please provide a username to delete.' });
+    }
+
+    // Step 2: Find the user by username
+    const user = await User.findOne({ username }).select("-password").exec();
+
+    // Step 3: Handle case where user is not found
     if (!user) {
-        return res.status(400).json({ message: 'User not found' })
+        return res.status(404).json({ message: 'User not found.' });
     }
 
-    const result = await user.deleteOne()
-    //confirm that the result is success
-    if(result){
-        
-        return res.status(201).json({message:`the user ${user.username} with id ${user.id} has been deleted successfully`})
-    }else{
-        return res.status(409).json({message:"There is a conflict"})
-    }
-    
-    
+ 
 
-})
+    // Step 5: Delete the user
+    const result = await user.deleteOne();
+
+    // Step 6: Check for successful deletion
+    if (result && result.deletedCount === 1) {
+        return res.status(200).json({ message: `The user ${user.username} has been deleted successfully.` });
+    } else {
+        // This case would typically indicate an issue on the server,
+        // as the user was found but not deleted.
+        return res.status(500).json({ message: "Failed to delete user." });
+    }
+});
 //testing api 
 //!IMPORTANT
 
-const testing = asyncHandler(async(req,res)=>{
-    const {username} = req.body 
-    if(!username)return res.status(400).json({message:"field user required"})
-    const user = await User.findOne({username}).select("-password").populate('c_Name','-password').lean().exec()
-    if(!user)return res.status(400).json({message:"user not found"})
+// const testing = asyncHandler(async(req,res)=>{
+//     const {username} = req.body 
+//     if(!username)return res.status(400).json({message:"field user required"})
+//     const user = await User.findOne({username}).select("-password").populate('c_Name','-password').lean().exec()
+//     if(!user)return res.status(400).json({message:"user not found"})
     
-        return res.json({user:{
-            user:user
-        }})
+//         return res.json({user:{
+//             user:user
+//         }})
+// })
+const get_users_comp = asyncHandler(async(req,res)=>{
+    const{c_Name} = req.body 
+    if(!c_Name) return res.status(400).json({message:"company field required"})
+    const company = await Company.findOne({c_Name}).select('-password').lean().exec()
+    
+    const users = await User.find({c_Name:company._id}).select('-password') .lean().exec();
+    if(!users)return res.status(404).json({message:"no users found to this company"})
+
+    return res.json ({users});
+
+
 })
 
 
@@ -189,5 +215,6 @@ module.exports={
     getCompanyUsers,
     updateUser,
     delete_select,
-    testing
+    get_users_comp
+    
 }
