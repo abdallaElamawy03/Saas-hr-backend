@@ -479,6 +479,93 @@ const delete_Note =asyncHandler(async(req,res)=>{
 
 })
 
+// Independent function to update overdue tasks
+const updateOverdueTasks = asyncHandler(async () => {
+    try {
+        console.log('Starting overdue task update process...');
+        
+        const currentDate = new Date();
+        let totalTasksUpdated = 0;
+        let totalSubTasksUpdated = 0;
+        
+        // Find all tasks that have sub-tasks with 'inprogress' status
+        const tasks = await Task.find({
+            'task': {
+                $elemMatch: {
+                    'status': 'inprogress'
+                }
+            }
+        }).exec();
+        
+        console.log(`Found ${tasks.length} tasks to check for overdue sub-tasks`);
+        
+        // Process each task
+        for (const task of tasks) {
+            let taskModified = false;
+            let subTasksUpdatedInThisTask = 0;
+            
+            // Check each sub-task in the current task
+            for (const subTask of task.task) {
+                // Check if sub-task is overdue and still in progress
+                if (subTask.status === 'inprogress' && 
+                    subTask.dueDate && 
+                    new Date(subTask.dueDate) < currentDate) {
+                    
+                    console.log(`Found overdue sub-task: ${subTask._id} in task: ${task._id}`);
+                    
+                    // Update status to late
+                    subTask.status = 'late';
+                    
+                    // Update counters
+                    task.totalInprogress = Math.max(0, task.totalInprogress - 1);
+                    task.totalLate = (task.totalLate || 0) + 1;
+                    
+                    taskModified = true;
+                    subTasksUpdatedInThisTask++;
+                    totalSubTasksUpdated++;
+                    
+                    console.log(`Updated sub-task ${subTask._id} to late status`);
+                }
+            }
+            
+            // Save the task if any sub-tasks were modified
+            if (taskModified) {
+                try {
+                    await task.save();
+                    totalTasksUpdated++;
+                    console.log(`Saved task ${task._id} with ${subTasksUpdatedInThisTask} updated sub-tasks`);
+                } catch (saveError) {
+                    console.error(`Error saving task ${task._id}:`, saveError.message);
+                }
+            }
+        }
+        
+        const summary = {
+            success: true,
+            message: 'Overdue task update completed successfully',
+            totalTasksProcessed: tasks.length,
+            totalTasksUpdated: totalTasksUpdated,
+            totalSubTasksUpdated: totalSubTasksUpdated,
+            executedAt: new Date().toISOString()
+        };
+        
+        console.log('Overdue task update summary:', summary);
+        return summary;
+        
+    } catch (error) {
+        console.error('Error in updateOverdueTasks function:', error);
+        
+        const errorSummary = {
+            success: false,
+            message: 'Error updating overdue tasks',
+            error: error.message,
+            executedAt: new Date().toISOString()
+        };
+        
+        return errorSummary;
+    }
+});
+
 
 
 
@@ -504,56 +591,7 @@ const view_Task =asyncHandler(async(req,res)=>{
 
 })
 
-const checkLateTasks = asyncHandler(async (req, res) => {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to the beginning of the day
 
-    // Find all task documents
-    const allTaskDocs = await Task.find({});
-
-    if (!allTaskDocs || allTaskDocs.length === 0) {
-      return res.status(200).json({ message: "No tasks found to check." });
-    }
-
-    let updatedCount = 0;
-
-    // Loop through each user's task document
-    for (const taskDoc of allTaskDocs) {
-      // Loop through the tasks array for that user
-      for (const taskItem of taskDoc.task) {
-        // Check if the due date has passed and the status isn't 'completed' or 'late'
-        if (
-          new Date(taskItem.dueDate) < today &&
-          taskItem.status !== 'completed' &&
-          taskItem.status !== 'late'
-        ) {
-          // Update the status
-          taskItem.status = 'late';
-          // Update the counts
-          taskDoc.totalInprogress -= 1;
-          taskDoc.totalLate += 1;
-          updatedCount++;
-        }
-      }
-      // Save the changes to the task document
-      await taskDoc.save();
-    }
-
-    if (updatedCount > 0) {
-      res.status(200).json({
-        message: `${updatedCount} tasks updated to 'late' status.`,
-      });
-    } else {
-      res.status(200).json({ message: "No tasks needed to be updated." });
-    }
-  } catch (error) {
-    res.status(500).json({
-      msg: "Error checking for late tasks",
-      error: error.message,
-    });
-  }
-});
 
 
 module.exports={
@@ -568,6 +606,6 @@ module.exports={
     delete_Note,
     get_allNotes,
     view_Task,
-    checkLateTasks
+    updateOverdueTasks
 
 }

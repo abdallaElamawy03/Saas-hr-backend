@@ -10,6 +10,7 @@ const cors = require("cors")
 const PORT = process.env.PORT || 3500
 const connectDB = require('./config/dbConn')
 const mongoose = require('mongoose')
+const task = require('../Back-End/controllers/task')
 
 app.use(express.json())
 app.use(express.static('public'))
@@ -52,5 +53,7 @@ mongoose.connection.on('error',err=>{
     console.log(err)
     logEvents(`${err.no} : ${err.code} : ${err.syscall} ${err.hostname} `,"mongoerrorlog.log")
 })
-    // app.listen(PORT,()=>console.log(`sever running on port ${PORT}`))
-    //use the upper code if you want to use the server without data base and comment the code line of mongoose and connectDB() => function
+task.updateOverdueTasks()
+
+
+   

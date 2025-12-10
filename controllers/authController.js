@@ -59,7 +59,7 @@ return res.status(200).json({
 
     
 
-    //do stuff
+    
 })
 // @desc Refresh 
 // @route Get /auth/refresh 
