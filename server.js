@@ -10,7 +10,7 @@ const cors = require("cors")
 const PORT = process.env.PORT || 3500
 const connectDB = require('./config/dbConn')
 const mongoose = require('mongoose')
-const task = require('../Back-End/controllers/task')
+const task = require('./controllers/task')
 
 app.use(express.json())
 app.use(express.static('public'))
