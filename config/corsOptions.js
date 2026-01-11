@@ -1,5 +1,5 @@
 const cors = require('cors');
-const allowedOrigin = require('./allowedOrigin');
+const allowedOrigin = require('./config/allowedOrigin');
 
 app.use(
   cors({
